@@ -152,7 +152,7 @@ export const mockOptimizationSuggestions: OptimizationSuggestion[] = [
     id: 'OPT001',
     type: 'conflict_resolution',
     trainId: 'T003',
-    description: 'Reroute freight train via Track 16 to avoid congestion',
+    description: 'Reroute Train1_Blue via Track T1_B2_S1 to avoid congestion',
     impact: {
       throughputImprovement: 15,
       delayReduction: 8

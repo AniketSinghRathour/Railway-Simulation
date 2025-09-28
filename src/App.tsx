@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Train, Intersection, OptimizationSuggestion } from './types/railway';
 import { mockTrains, mockIntersections, mockTracks, mockOptimizationSuggestions, mockSectionMetrics } from './data/mockData';
-import TrackLayout from './components/TrackLayout';
+import TrackLayout from './components/MyLayout/TrackLayout';
 import ControlPanel from './components/ControlPanel';
 import Dashboard from './components/Dashboard';
 import SimulationPanel from './components/SimulationPanel';
@@ -11,13 +11,149 @@ import { Badge } from './components/ui/badge';
 import { Activity, Settings, BarChart3, Play } from 'lucide-react';
 
 export default function App() {
+  const [signals, setSignals] = useState(["green", "red", "green", "red"]);
+  const changeSignal = (index, newSignal) => {
+    signals[index] = newSignal;
+    setSignals([...signals]);
+  }
+
+  const [yellowTrainPos, setYellowTrainPos] = useState({ x: 240, y: 230 });
+  const setTrainPosition = (x, y) => {
+    setYellowTrainPos({ x, y });
+  }
+
+  const [blueTrainPos, setBlueTrainPos] = useState({ x: 55, y: 105 });
+  const setBlueTrainPosition = (x, y) => {
+    setBlueTrainPos({ x, y });
+  }
+
+  const [redTrainPos, setRedTrainPos] = useState({ x: 445, y: 105 });
+  const setRedTrainPosition = (x, y) => {
+    setRedTrainPos({ x, y });
+  }
+
+  const redTrainRef = useRef(redTrainPos);
+  useEffect(() => {
+    redTrainRef.current = redTrainPos;
+  }, [redTrainPos]);
+
+  const [tracking, setTracking] = useState(false);
+  const trackingRef = useRef(null);
+
+  const [divertBlue, setDivertBlue] = useState(false);
+  const divertBlueRef = useRef(divertBlue);
+  useEffect(() => {
+    divertBlueRef.current = divertBlue;
+  }, [divertBlue]);
+
+  const [divertRed, setDivertRed] = useState(false);
+  const divertRedRef = useRef(divertRed);
+  useEffect(() => {
+    divertRedRef.current = divertRed;
+  }, [divertRed]);
+
+  const handleDivertBlue = () => {
+    setDivertBlue(true);
+    setSignals(prev => {
+      const newSignals = [...prev];
+      newSignals[0] = "red";
+      newSignals[1] = "green";
+      return newSignals;
+    });
+  }
+
+  const handleDivertRed = () => {
+    setDivertRed(true);
+    setSignals(prev => {
+      const newSignals = [...prev];
+      newSignals[2] = "red";
+      newSignals[3] = "green";
+      return newSignals;
+    });
+  }  
+
+  const toggleTracking = () => {
+    if (tracking) {
+      clearInterval(trackingRef.current);
+      trackingRef.current = null;
+      setTracking(false);
+    } 
+    else {
+      setTracking(true);
+      trackingRef.current = setInterval(() => {
+        setYellowTrainPos(prev => ({
+          ...prev,
+          x: prev.x + 10
+        }));
+
+        setBlueTrainPos(prev => {
+          let newX = prev.x + 12;
+          let newY = prev.y;
+
+          if (divertBlueRef.current && (prev.x >= 150 && prev.x < 185)) newY -= 17;
+          else if (divertBlueRef.current && (prev.x >= 280 && prev.x < 312)) {
+            changeSignal(3, "green");
+            changeSignal(2, "red");
+            newY += 17;
+          }
+
+          if(!(divertBlueRef.current || divertRedRef.current) && (redTrainRef.current.x <= 330)){
+            changeSignal(2, "red");
+            changeSignal(3, "red");
+            newX = prev.x;
+            newY = prev.y;
+          }
+          return { ...prev, x: newX, y: newY };
+        });
+        
+        setRedTrainPos(prev => {
+          let newX = prev.x - 10;
+          let newY = prev.y;
+
+          if (divertRedRef.current && (prev.x <= 315 && prev.x > 290)) newY -= 18;
+          else if(divertRedRef.current && (prev.x > 270 && prev.x <= 290)){
+            changeSignal(1, "green");
+            changeSignal(0, "red");
+          }
+          else if (divertRedRef.current && (prev.x > 160 && prev.x <= 185)) {
+            newY += 18;
+          }
+
+          if(!(divertBlueRef.current || divertRedRef.current) && (redTrainRef.current.x <= 330)){
+            changeSignal(2, "red");
+            changeSignal(3, "red");
+            newX = prev.x;
+            newY = prev.y;
+          }
+
+          return { ...prev, x: newX, y: newY };
+        });
+
+      }, 600);
+      
+    }
+  }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
   const [trains, setTrains] = useState(mockTrains);
   const [intersections, setIntersections] = useState(mockIntersections);
   const [tracks, setTracks] = useState(mockTracks);
   const [optimizationSuggestions, setOptimizationSuggestions] = useState(mockOptimizationSuggestions);
   const [selectedTrain, setSelectedTrain] = useState<Train | undefined>();
   const [selectedIntersection, setSelectedIntersection] = useState<Intersection | undefined>();
-  const [autoOptimizeEnabled, setAutoOptimizeEnabled] = useState(true);
+  const [autoOptimizeEnabled, setAutoOptimizeEnabled] = useState(false);
   const [systemStatus, setSystemStatus] = useState<'operational' | 'warning' | 'critical'>('operational');
 
   const handleTrainSelect = (train: Train) => {
@@ -61,9 +197,11 @@ export default function App() {
 
   const handleAutoOptimize = (enabled: boolean) => {
     setAutoOptimizeEnabled(enabled);
+    // toggleTracking();
     if (enabled) {
       // Simulate auto-optimization effects
       setSystemStatus('operational');
+      // toggleTracking();
     }
   };
 
@@ -98,22 +236,22 @@ export default function App() {
       <div className="border-b bg-card px-6 py-4 flex-shrink-0">
         <div className="flex items-center justify-between">
           <div className="min-w-0 flex-1">
-            <h1 className="text-xl lg:text-2xl font-bold truncate">Railway Traffic Control System</h1>
-            <p className="text-sm text-muted-foreground hidden sm:block">AI-Powered Precise Train Traffic Control</p>
+            <h1 className="text-xl lg:text-2xl font-bold truncate">Track Tracker</h1>
+            <p className="text-sm text-muted-foreground hidden sm:block">AI-Powered Train Traffic Control</p>
           </div>
           <div className="flex items-center gap-2 lg:gap-4 flex-shrink-0">
             <div className="flex items-center gap-1">
               <Activity className="w-4 h-4" />
               <span className="text-sm hidden sm:inline">Active:</span>
-              <span className="text-sm font-medium">{activeTrains}</span>
+              <span className="text-sm font-medium">{"3"}</span>
             </div>
             <div className="flex items-center gap-1">
               <span className="text-sm hidden sm:inline">Delayed:</span>
-              <span className="text-sm font-medium text-red-600">{delayedTrains}</span>
+              <span className="text-sm font-medium text-red-600">{"2"}</span>
             </div>
             <div className="flex items-center gap-1">
               <span className="text-sm hidden sm:inline">Alerts:</span>
-              <span className="text-sm font-medium text-orange-600">{criticalAlerts}</span>
+              <span className="text-sm font-medium text-orange-600">{"1"}</span>
             </div>
             <Badge variant={getStatusColor(systemStatus)} className="text-xs">
               {systemStatus.toUpperCase()}
@@ -126,13 +264,31 @@ export default function App() {
       <div className="flex-1 flex overflow-hidden">
         {/* Left Panel - Track Layout */}
         <div className="flex-1 p-4">
-          <TrackLayout
+          {/* <TrackLayout
             trains={trains}
             intersections={intersections}
             tracks={tracks}
             onTrainSelect={handleTrainSelect}
-            onIntersectionSelect={handleIntersectionSelect}
-          />
+            onIntersectionSelect={handleIntersectionSelect} */}
+          {/* /> */}
+
+          {/* <button onClick={toggleTracking}>{tracking ? "Stop Tracking" : "Start Tracking"}</button> */}
+            
+            {/* {tracking ? (
+           (blueTrainPos.x <= 160 && !divertBlue) ? (
+            <button onClick={handleDivertBlue}> Divert Blue </button>
+          ) : (
+            (!divertBlue && ( (blueTrainPos.x > 160) ? <button onClick={handleDivertRed}> Divert Red </button>
+              : setDivertRed(false)
+            ))
+        )) : null} */}
+
+          <TrackLayout
+          signals={signals}
+          blueTrainPos={blueTrainPos}
+          redTrainPos={redTrainPos}
+          yellowTrainPos={yellowTrainPos}
+        />
         </div>
 
         {/* Right Panel - Tabs */}
@@ -167,8 +323,22 @@ export default function App() {
                     onTrainUpdate={handleTrainUpdate}
                     onApplySuggestion={handleApplySuggestion}
                     onEmergencyStop={handleEmergencyStop}
-                    onAutoOptimize={handleAutoOptimize}
+                    onAutoOptimize={(enabled) => { 
+                      toggleTracking();
+                      handleAutoOptimize(enabled);
+                    }}
                     autoOptimizeEnabled={autoOptimizeEnabled}
+                    tracking={tracking}
+                    handleDivertBlue={handleDivertBlue}
+                    handleDivertRed={handleDivertRed}
+                    blueTrainPos={blueTrainPos}
+                    divertBlue={divertBlue}
+                    setDivertBlue={setDivertBlue}
+                    divertRed={divertRed}
+                    setDivertRed={setDivertRed}
+                    setDivertBlue={setDivertBlue}
+                    divertRed={divertRed}
+                    setDivertRed={setDivertRed}
                   />
                 </div>
               </TabsContent>
